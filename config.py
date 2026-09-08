@@ -267,6 +267,36 @@ ROLE_HIERARCHY: List[RoleConfig] = [
     )
 ]
 
+# Mapping of divider roles to the roles that belong to that section
+DIVIDER_MAPPING: Dict[str, List[str]] = {
+    "─── ADMINISTRATION ───": [
+        "⚜️ Military High Command",
+        "🛡️ Knox County Marshals",
+        "🤖 Grand Knox AI",
+        "📻 Emergency Dispatch"
+    ],
+    "─── SURVIVOR TIERS ───": [
+        "🎖️ Veteran Survivor",
+        "🌲 Knox Survivor",
+        "🔇 Isolated / Infected"
+    ],
+    "─── SURVIVOR SPECIALTIES ───": [
+        "🩺 Field Medic",
+        "🔨 Master Carpenter",
+        "🪓 Woodland Scavenger",
+        "🎯 Marksman / Hunter",
+        "🚗 Grease Monkey",
+        "🌾 Rural Farmer",
+        "⚡ Electrician"
+    ],
+    "─── TRANSMISSION ALERTS ───": [
+        "📢 Cordon Announcements",
+        "🧟 Knox Horde Invasions",
+        "🛠️ Server Restarts & Wipes",
+        "📻 Radio Broadcasts"
+    ]
+}
+
 # ==============================================================================
 # CATEGORY & CHANNEL BLUEPRINTS
 # ==============================================================================

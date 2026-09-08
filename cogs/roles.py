@@ -90,6 +90,15 @@ class SpecialtySelect(discord.ui.Select):
                     await member.remove_roles(role_obj, reason="Survivor specialty self-selection")
                     removed_roles.append(role_obj.name)
 
+        # Synchronize specialties divider
+        specialty_div = discord.utils.get(guild.roles, name="─── SURVIVOR SPECIALTIES ───")
+        if specialty_div:
+            has_specialties = any(discord.utils.get(guild.roles, name=r) in member.roles for r in all_specialty_names)
+            if has_specialties and specialty_div not in member.roles:
+                await member.add_roles(specialty_div, reason="Auto-assign specialties divider")
+            elif not has_specialties and specialty_div in member.roles:
+                await member.remove_roles(specialty_div, reason="Remove unused specialties divider")
+
         embed = discord.Embed(
             title="🛠️ Survivor Trade Specialty Updated",
             description="Your dossier in the Knox County registry has been updated with your operational roles.",
@@ -169,6 +178,15 @@ class NotificationSelect(discord.ui.Select):
                 if role_obj in member.roles:
                     await member.remove_roles(role_obj, reason="Notification ping self-selection")
                     removed_roles.append(role_obj.name)
+
+        # Synchronize transmission alerts divider
+        alerts_div = discord.utils.get(guild.roles, name="─── TRANSMISSION ALERTS ───")
+        if alerts_div:
+            has_alerts = any(discord.utils.get(guild.roles, name=r) in member.roles for r in all_alert_names)
+            if has_alerts and alerts_div not in member.roles:
+                await member.add_roles(alerts_div, reason="Auto-assign alerts divider")
+            elif not has_alerts and alerts_div in member.roles:
+                await member.remove_roles(alerts_div, reason="Remove unused alerts divider")
 
         embed = discord.Embed(
             title="📻 Radio Frequency Preferences Saved",

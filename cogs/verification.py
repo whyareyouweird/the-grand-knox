@@ -97,8 +97,45 @@ class AutoRoleCog(commands.Cog):
         except Exception as e:
             print(f"[MemberCount] Error updating member count VC: {e}")
 
+    async def sync_member_dividers(self, member: discord.Member):
+        """Automatically assigns or removes visual divider roles based on member's active roles."""
+        if member.bot:
+            return
+        guild = member.guild
+        current_role_names = {r.name for r in member.roles}
+
+        roles_to_add = []
+        roles_to_remove = []
+
+        for divider_name, category_roles in config.DIVIDER_MAPPING.items():
+            divider_obj = discord.utils.get(guild.roles, name=divider_name)
+            if not divider_obj:
+                continue
+
+            has_category_role = any(r in current_role_names for r in category_roles)
+            has_divider = divider_name in current_role_names
+
+            if has_category_role and not has_divider:
+                roles_to_add.append(divider_obj)
+            elif not has_category_role and has_divider:
+                roles_to_remove.append(divider_obj)
+
+        if roles_to_add:
+            try:
+                await member.add_roles(*roles_to_add, reason="Auto-assign category dividers")
+                print(f"[Dividers] Added {[r.name for r in roles_to_add]} to {member.name}")
+            except Exception as e:
+                print(f"[Dividers] Error adding dividers to {member.name}: {e}")
+
+        if roles_to_remove:
+            try:
+                await member.remove_roles(*roles_to_remove, reason="Remove unused category dividers")
+                print(f"[Dividers] Removed {[r.name for r in roles_to_remove]} from {member.name}")
+            except Exception as e:
+                print(f"[Dividers] Error removing dividers from {member.name}: {e}")
+
     async def audit_and_autorole_guild(self, guild: discord.Guild) -> dict:
-        """Audits guild members and assigns survivor role to anyone missing it."""
+        """Audits guild members, assigns survivor role, and synchronizes dividers."""
         survivor_role = discord.utils.get(guild.roles, name="🌲 Knox Survivor")
         high_cmd = discord.utils.get(guild.roles, name="⚜️ Military High Command")
         
@@ -132,7 +169,16 @@ class AutoRoleCog(commands.Cog):
             else:
                 stats["already_roled"] += 1
 
+            # Automatically sync category dividers for this member
+            await self.sync_member_dividers(member)
+
         return stats
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        """Automatically adjusts divider roles whenever a member's roles change."""
+        if before.roles != after.roles:
+            await self.sync_member_dividers(after)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
@@ -141,7 +187,7 @@ class AutoRoleCog(commands.Cog):
         if not guild:
             return
 
-        # 1. Instant Auto-Role
+        # 1. Instant Auto-Role & Category Dividers
         survivor_role = discord.utils.get(guild.roles, name="🌲 Knox Survivor")
         if survivor_role:
             try:
@@ -149,6 +195,9 @@ class AutoRoleCog(commands.Cog):
                 print(f"[AutoRole] SUCCESS: Granted 🌲 Knox Survivor to new arrival: {member.name} ({member.id})")
             except Exception as e:
                 print(f"[AutoRole] FAILED to auto-role {member.name}: {e}")
+
+        # Automatically grant Survivor Tiers divider
+        await self.sync_member_dividers(member)
 
         # 2. Update Member Count VC
         await self.update_member_count_vc(guild)
