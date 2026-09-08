@@ -8,7 +8,7 @@ import random
 import datetime
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 import config
 
 class AutoRoleCog(commands.Cog):
@@ -78,13 +78,16 @@ class AutoRoleCog(commands.Cog):
                 )
                 print(f"[MemberCount] Created counter VC: '{target_name}' at position 0")
             else:
-                # Update name if changed
+                edit_kwargs = {}
                 if target_vc.name != target_name:
-                    await target_vc.edit(name=target_name, reason="Member count update")
-                    print(f"[MemberCount] Updated counter VC to '{target_name}'")
-                # Ensure locked permissions
+                    edit_kwargs["name"] = target_name
                 if target_vc.position != 0 or target_vc.category is not None:
-                    await target_vc.edit(position=0, category=None, overwrites=overwrites)
+                    edit_kwargs["position"] = 0
+                    edit_kwargs["category"] = None
+                    edit_kwargs["overwrites"] = overwrites
+                if edit_kwargs:
+                    await target_vc.edit(**edit_kwargs, reason="Member count update")
+                    print(f"[MemberCount] Updated counter VC: {target_name}")
         except discord.HTTPException as e:
             # Respect Discord channel edit rate limits gracefully
             if e.status == 429:
