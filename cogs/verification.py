@@ -150,10 +150,7 @@ class AutoRoleCog(commands.Cog):
         # 2. Update Member Count VC
         await self.update_member_count_vc(guild)
 
-        # 3. Locate channels
-        welcome_ch = (discord.utils.get(guild.text_channels, name="👋・welcome") or 
-                      discord.utils.get(guild.text_channels, name="welcome"))
-        
+        # 3. Locate channels for quick guide
         general_ch = (discord.utils.get(guild.text_channels, name="💬・general") or 
                       discord.utils.get(guild.text_channels, name="general"))
         
@@ -163,51 +160,27 @@ class AutoRoleCog(commands.Cog):
         roles_ch = (discord.utils.get(guild.text_channels, name="🎭・roles") or 
                     discord.utils.get(guild.text_channels, name="roles"))
 
-        # 4. Short friendly text welcome in #general
+        status_ch = (discord.utils.get(guild.text_channels, name="🟢・server-status") or 
+                     discord.utils.get(guild.text_channels, name="server-status"))
+
+        # 4. Greet new arrival directly in #general with quick server guide
         if general_ch:
-            welcome_lines = [
-                f"👋 Welcome to The Grand Knox, {member.mention}! Glad to have you with us.",
-                f"🌲 Welcome to the server, {member.mention}! Make yourself at home.",
-                f"👋 Everyone welcome {member.mention} to The Grand Knox!",
-                f"🪓 Welcome {member.mention}! Glad you made it to the safehouse."
-            ]
+            rules_ref = rules_ch.mention if rules_ch else "#rules"
+            roles_ref = roles_ch.mention if roles_ch else "#roles"
+            status_ref = status_ch.mention if status_ch else "#server-status"
+
+            welcome_msg = (
+                f"👋 Welcome {member.mention} to The Grand Knox! You are survivor #{guild.member_count}.\n"
+                f"• Check the server guidelines in {rules_ref}\n"
+                f"• Choose your trade specialties & alerts in {roles_ref}\n"
+                f"• View live PZ server telemetry in {status_ref}\n"
+                f"Good luck out there, and don't get bitten! 🌲"
+            )
             try:
-                await general_ch.send(random.choice(welcome_lines))
-                print(f"[AutoRole] Sent short welcome text to #general for {member.name}")
+                await general_ch.send(welcome_msg)
+                print(f"[AutoRole] Sent general chat welcome guide for {member.name}")
             except Exception as e:
                 print(f"[AutoRole] Could not send welcome message to #general: {e}")
-
-        # 5. Send formal welcome arrival card to #welcome
-        if welcome_ch:
-            survivor_id = f"KZ-{random.randint(1000, 9999)}"
-            rules_mention = rules_ch.mention if rules_ch else "#rules"
-            general_mention = general_ch.mention if general_ch else "#general"
-            roles_mention = roles_ch.mention if roles_ch else "#roles"
-
-            embed = discord.Embed(
-                title="👋 WELCOME TO THE GRAND KNOX",
-                description=(
-                    f"Welcome to the community, {member.mention}!\n\n"
-                    f"┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
-                    f"  **Survivor**: {member.mention} (`{member.name}`)\n"
-                    f"  **Registry Tag**: `{survivor_id}`\n"
-                    f"  **Assigned Role**: {survivor_role.mention if survivor_role else '`Survivor`'}\n"
-                    f"  **Status**: **Auto-Verified & Cleared**\n"
-                    f"┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n"
-                    f"• Read our server guidelines in {rules_mention}.\n"
-                    f"• Say hello and meet fellow players in {general_mention}.\n"
-                    f"• Choose your specialty and notification pings in {roles_mention}!"
-                ),
-                color=config.KnoxColors.SURVIVOR_GREEN
-            )
-            embed.set_thumbnail(url=member.display_avatar.url)
-            embed.set_footer(text=f"The Grand Knox • Member #{guild.member_count}")
-            embed.timestamp = datetime.datetime.now()
-
-            try:
-                await welcome_ch.send(embed=embed)
-            except Exception as e:
-                print(f"[AutoRole] Could not post welcome embed: {e}")
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):

@@ -304,15 +304,10 @@ SERVER_STRUCTURE = [
         ]
     },
     {
-        "category": "👋 ︱ WELCOME & ROLES",
+        "category": "🎭 ︱ ROLES",
         "type": "category",
         "access": "public_read_only",
         "channels": [
-            {
-                "name": "👋・welcome",
-                "type": "text",
-                "topic": "Welcome arrivals log for newly joined survivors."
-            },
             {
                 "name": "🎭・roles",
                 "type": "text",
