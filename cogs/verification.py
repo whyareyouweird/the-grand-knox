@@ -6,6 +6,8 @@ scans on startup to catch any missed members, and posts clean arrival logs in #w
 
 import random
 import datetime
+import time
+import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
@@ -14,6 +16,7 @@ import config
 class AutoRoleCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.last_vc_update = 0.0
         self.member_count_loop.start()
 
     def cog_unload(self):
@@ -25,17 +28,17 @@ class AutoRoleCog(commands.Cog):
         await self.bot.wait_until_ready()
         for guild in self.bot.guilds:
             await self.audit_and_autorole_guild(guild)
-            await self.update_member_count_vc(guild)
+            await self.update_member_count_vc(guild, force=True)
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(minutes=5)
     async def member_count_loop(self):
         """Periodic background refresh for member count VC."""
         await self.bot.wait_until_ready()
         for guild in self.bot.guilds:
             await self.update_member_count_vc(guild)
 
-    async def update_member_count_vc(self, guild: discord.Guild):
-        """Maintains the locked voice channel displaying live server member count."""
+    async def update_member_count_vc(self, guild: discord.Guild, force: bool = False):
+        """Maintains the locked voice channel displaying live server member count safely."""
         try:
             target_name = f"👥 Members: {guild.member_count}"
             
@@ -46,7 +49,15 @@ class AutoRoleCog(commands.Cog):
                     target_vc = vc
                     break
 
-            # Permissions: everyone can see, but nobody can connect (lock icon)
+            if target_vc and target_vc.name == target_name:
+                return  # Already up-to-date!
+
+            now = time.time()
+            # Discord enforces a strict limit of 2 channel name changes per 10 minutes!
+            if not force and target_vc and (now - self.last_vc_update) < 320:
+                print(f"[MemberCount] Cooldown active (last update {int(now - self.last_vc_update)}s ago). Queued for next 5m cycle.")
+                return
+
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(
                     view_channel=True,
@@ -76,6 +87,7 @@ class AutoRoleCog(commands.Cog):
                     position=0,
                     reason="Automated Server Member Counter"
                 )
+                self.last_vc_update = time.time()
                 print(f"[MemberCount] Created counter VC: '{target_name}' at position 0")
             else:
                 edit_kwargs = {}
@@ -86,10 +98,16 @@ class AutoRoleCog(commands.Cog):
                     edit_kwargs["category"] = None
                     edit_kwargs["overwrites"] = overwrites
                 if edit_kwargs:
-                    await target_vc.edit(**edit_kwargs, reason="Member count update")
-                    print(f"[MemberCount] Updated counter VC: {target_name}")
+                    # Timeout after 5s so discord.py never sleeps for 10m on rate limit
+                    await asyncio.wait_for(
+                        target_vc.edit(**edit_kwargs, reason="Member count update"),
+                        timeout=5.0
+                    )
+                    self.last_vc_update = time.time()
+                    print(f"[MemberCount] Updated counter VC to: {target_name}")
+        except asyncio.TimeoutError:
+            print("[MemberCount] Rate limit active on Discord API; update will retry on next 5m cycle.")
         except discord.HTTPException as e:
-            # Respect Discord channel edit rate limits gracefully
             if e.status == 429:
                 print(f"[MemberCount] Rate limited updating member count: {e}")
             else:
@@ -197,12 +215,12 @@ class AutoRoleCog(commands.Cog):
                 print(f"[AutoRole] FAILED to auto-role {member.name}: {e}")
 
         # Automatically grant Survivor Tiers divider
-        await self.sync_member_dividers(member)
+        try:
+            await self.sync_member_dividers(member)
+        except Exception as e:
+            print(f"[AutoRole] Error syncing dividers for {member.name}: {e}")
 
-        # 2. Update Member Count VC
-        await self.update_member_count_vc(guild)
-
-        # 3. Locate channels for quick guide
+        # 2. Greet new arrival directly in #general IMMEDIATELY! (Never blocked)
         general_ch = (discord.utils.get(guild.text_channels, name="💬・general") or 
                       discord.utils.get(guild.text_channels, name="general"))
         
@@ -215,7 +233,6 @@ class AutoRoleCog(commands.Cog):
         status_ch = (discord.utils.get(guild.text_channels, name="🟢・server-status") or 
                      discord.utils.get(guild.text_channels, name="server-status"))
 
-        # 4. Greet new arrival directly in #general with quick server guide
         if general_ch:
             rules_ref = rules_ch.mention if rules_ch else "#rules"
             roles_ref = roles_ch.mention if roles_ch else "#roles"
@@ -234,12 +251,15 @@ class AutoRoleCog(commands.Cog):
             except Exception as e:
                 print(f"[AutoRole] Could not send welcome message to #general: {e}")
 
+        # 3. Schedule Member Count VC update asynchronously in background (non-blocking)
+        asyncio.create_task(self.update_member_count_vc(guild))
+
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
-        """Update member count when someone leaves."""
+        """Update member count when someone leaves asynchronously."""
         guild = member.guild
         if guild:
-            await self.update_member_count_vc(guild)
+            asyncio.create_task(self.update_member_count_vc(guild))
 
     @app_commands.command(
         name="sync-roles",
